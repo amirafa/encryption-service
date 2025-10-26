@@ -1,0 +1,37 @@
+{
+  "name": "encryption-service",
+  "version": "1.0.0",
+  "description": "An Encryption Servic library built with Vite",
+  "license": "MIT",
+  "author": "Amirafa <amir.h.rafati@gmail.com>",
+  "keywords": [
+    "E2EE",
+    "EncryptionService",
+    "ECDH",
+    "AES-GCM"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "main": "./dist/encryption-service.umd.js",
+  "module": "./dist/encryption-service.es.js",
+  "exports": {
+    ".": {
+      "import": "./dist/encryption-service.es.js",
+      "require": "./dist/encryption-service.umd.js"
+    }
+  },
+  "scripts": {
+    "build": "vite build",
+    "typecheck": "tsc --noEmit"
+  },
+  "files": [
+    "dist"
+  ],
+  "devDependencies": {
+    "vite": "^5.4.0",
+    "typescript": "^5.6.0",
+    "@types/node": "^22.0.0"
+  },
+  "type": "module"
+}

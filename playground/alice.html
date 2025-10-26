@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>👩 Alice — Secure Messaging</title>
+        <style>
+            body {
+                font-family: system-ui, sans-serif;
+                background: #f6f6f9;
+                margin: 2rem;
+                max-width: 420px;
+            }
+            button,
+            input,
+            textarea {
+                width: 100%;
+                margin-top: 0.5rem;
+            }
+            .fingerprint {
+                font-family: monospace;
+                background: #eee;
+                padding: 0.4rem;
+                border-radius: 4px;
+                word-break: break-all;
+            }
+            .ok {
+                color: green;
+            }
+            .warn {
+                color: red;
+            }
+            #chat {
+                width: 100%;
+                height: 160px;
+                margin-top: 1rem;
+            }
+        </style>
+    </head>
+    <body>
+        <h2>🔐 Alice</h2>
+
+        <button id="gen-id">Generate Identity Keys</button>
+        <button id="gen-ecdh">Generate ECDH Keys</button>
+
+        <h4>My Fingerprint</h4>
+        <div id="fp" class="fingerprint">—</div>
+
+        <h4>Verify Bob’s Fingerprint</h4>
+        <input id="entered-fp" placeholder="Paste Bob’s fingerprint" />
+        <button id="confirm-fp">Confirm</button>
+        <div id="result"></div>
+
+        <hr />
+        <textarea id="msg" placeholder="Message to Bob..."></textarea>
+        <button id="send">Send ➡️ Bob</button>
+        <button id="read">📥 Read Last Message</button>
+
+        <h4>Chat Log</h4>
+        <textarea id="chat" readonly></textarea>
+
+        <script type="module">
+            import { EncryptionService } from "./node_modules/encryption-service/dist/encryption-service.es.js";
+            const svc = EncryptionService({ isolated: true });
+            const chatBox = document.getElementById("chat");
+
+            // --- Utility functions ---
+            function formatFp(hex) {
+                return (hex.match(/.{1,4}/g) || [hex]).join(":");
+            }
+
+            async function getFp(username) {
+                const pub = localStorage.getItem(`${username}-id-publicKey`);
+                if (!pub) return null;
+                const key = await svc.importIdentityPublicKey(pub);
+                return await svc.getIdentityFingerprint(key);
+            }
+
+            async function refreshFp() {
+                const fp = await getFp("alice");
+                document.getElementById("fp").textContent = fp
+                    ? formatFp(fp)
+                    : "—";
+            }
+
+            async function getKeys(name) {
+                return {
+                    idPriv: localStorage.getItem(`${name}-id-privateKey`),
+                    ecdhPriv: localStorage.getItem(`${name}-privateKey`),
+                    ecdhPub: localStorage.getItem(`${name}-publicKey`),
+                };
+            }
+
+            // --- Generate Keys ---
+            document.getElementById("gen-id").onclick = async () => {
+                await svc.generateAndStoreIdentityKeyPair("alice");
+                await refreshFp();
+                alert("✅ Alice identity keys ready.");
+            };
+
+            document.getElementById("gen-ecdh").onclick = async () => {
+                await svc.generateAndStoreECDHKeyPair("alice");
+                alert("✅ Alice ECDH keys ready.");
+            };
+
+            // --- Verify Fingerprint ---
+            document.getElementById("confirm-fp").onclick = async () => {
+                const entered = document
+                    .getElementById("entered-fp")
+                    .value.replace(/\s|:/g, "")
+                    .toLowerCase();
+                const real = await getFp("bob");
+                const res = document.getElementById("result");
+                if (!real)
+                    return (
+                        (res.textContent = "⚠️ No Bob key yet."),
+                        (res.className = "warn")
+                    );
+                if (entered === real)
+                    (res.textContent = "✅ MATCH — verified."),
+                        (res.className = "ok");
+                else
+                    (res.textContent = "⚠️ MISMATCH — possible MITM."),
+                        (res.className = "warn");
+            };
+
+            // --- Send Message ---
+            document.getElementById("send").onclick = async () => {
+                const message = document.getElementById("msg").value.trim();
+                if (!message) return alert("Enter a message first!");
+
+                const alice = await getKeys("alice");
+                const bobPub = localStorage.getItem("bob-publicKey");
+                if (!bobPub) return alert("⚠️ No Bob ECDH key.");
+
+                const priv = await svc.importPrivateKey(alice.ecdhPriv);
+                const pub = await svc.importPublicKey(bobPub);
+                const sharedKey = await svc.deriveSharedKey(priv, pub);
+
+                const { encryptedMessage, iv } = await svc.encryptMessageAES(
+                    message,
+                    sharedKey
+                );
+
+                localStorage.setItem(
+                    "msg-to-bob",
+                    svc.arrayBufferToBase64(encryptedMessage)
+                );
+                localStorage.setItem("iv-to-bob", svc.arrayBufferToBase64(iv));
+
+                chatBox.value += `[Alice → Bob] ${message}\n`;
+                document.getElementById("msg").value = "";
+            };
+
+            // --- Read Message from Bob ---
+            document.getElementById("read").onclick = async () => {
+                const enc = localStorage.getItem("msg-to-alice");
+                const iv = localStorage.getItem("iv-to-alice");
+                if (!enc || !iv) return alert("📭 No new message from Bob.");
+
+                const bobPub = localStorage.getItem("bob-publicKey");
+                const alicePriv = localStorage.getItem("alice-privateKey");
+                if (!bobPub || !alicePriv) return alert("⚠️ Missing keys.");
+
+                const priv = await svc.importPrivateKey(alicePriv);
+                const pub = await svc.importPublicKey(bobPub);
+                const sharedKey = await svc.deriveSharedKey(priv, pub);
+
+                const msg = await svc.decryptMessageAES(
+                    svc.base64ToArrayBuffer(enc),
+                    sharedKey,
+                    new Uint8Array(svc.base64ToArrayBuffer(iv))
+                );
+
+                chatBox.value += `[Bob → Alice] ${msg}\n`;
+            };
+
+            refreshFp();
+        </script>
+    </body>
+</html>

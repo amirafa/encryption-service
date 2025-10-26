@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>🔐 Secure Messaging Playground — Editable Fingerprint Test</title>
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        background: #f6f6f9;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 1.5rem;
+        margin: 2rem;
+      }
+      .users {
+        display: flex;
+        gap: 1.5rem;
+      }
+      .user {
+        background: #fff;
+        border-radius: 8px;
+        padding: 1rem;
+        width: 320px;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+      }
+      input, textarea, button {
+        width: 100%;
+        margin-top: 0.5rem;
+        box-sizing: border-box;
+      }
+      .fingerprint {
+        font-family: monospace;
+        font-size: 0.86em;
+        background: #eee;
+        padding: 0.4rem;
+        border-radius: 4px;
+        word-break: break-all;
+      }
+      .verify-status { margin-top: 0.4rem; font-weight: bold; }
+      .ok { color: green; }
+      .warn { color: red; }
+      #chatlog { width: 680px; height: 160px; }
+      .small { font-size: 0.9em; color: #444; margin-top: 0.3rem; }
+    </style>
+  </head>
+  <body>
+    <h2>🔐 Secure Messaging — Editable Fingerprint Test</h2>
+
+    <div class="users">
+      <div class="user" id="alice-box">
+        <h3>👩 Alice</h3>
+        <input id="u1-name" value="alice" />
+        <button id="u1-gen-identity">Generate Identity Keys</button>
+        <button id="u1-gen-ecdh">Generate ECDH Keys</button>
+
+        <label class="small">My computed fingerprint (readonly):</label>
+        <div id="u1-fingerprint-val" class="fingerprint">—</div>
+        <button id="u1-show-my-fp">Refresh My Fingerprint</button>
+
+        <label class="small">Enter Bob's fingerprint (what Bob reads to you) — editable for testing:</label>
+        <input id="u1-entered-fp" placeholder="paste or edit Bob's fingerprint here" />
+
+        <button id="u1-confirm-fp">Confirm fingerprint (Alice vs Bob)</button>
+        <div id="u1-confirm-result" class="verify-status"></div>
+
+        <hr/>
+
+        <textarea id="u1-msg" placeholder="Type a message to Bob..."></textarea>
+        <button id="u1-send">Send ➡️ Bob</button>
+      </div>
+
+      <div class="user" id="bob-box">
+        <h3>🧑 Bob</h3>
+        <input id="u2-name" value="bob" />
+        <button id="u2-gen-identity">Generate Identity Keys</button>
+        <button id="u2-gen-ecdh">Generate ECDH Keys</button>
+
+        <label class="small">My computed fingerprint (readonly):</label>
+        <div id="u2-fingerprint-val" class="fingerprint">—</div>
+        <button id="u2-show-my-fp">Refresh My Fingerprint</button>
+
+        <label class="small">Enter Alice's fingerprint (what Alice reads to you) — editable for testing:</label>
+        <input id="u2-entered-fp" placeholder="paste or edit Alice's fingerprint here" />
+
+        <button id="u2-confirm-fp">Confirm fingerprint (Bob vs Alice)</button>
+        <div id="u2-confirm-result" class="verify-status"></div>
+
+        <hr/>
+
+        <textarea id="u2-msg" placeholder="Type a message to Alice..."></textarea>
+        <button id="u2-send">Send ➡️ Alice</button>
+      </div>
+    </div>
+
+    <h3>💬 Decrypted Chat Log</h3>
+    <textarea id="chatlog" readonly></textarea>
+
+    <script type="module">
+      import { EncryptionService } from "./node_modules/encryption-service/dist/encryption-service.es.js";
+
+      const aliceSvc = EncryptionService({ isolated: true });
+      const bobSvc = EncryptionService({ isolated: true });
+
+      const chatLog = document.getElementById("chatlog");
+
+      // ---------------- Helpers ----------------
+      function fmtHexGrouped(hex) {
+        if (!hex) return "";
+        const groups = hex.match(/.{1,4}/g) || [hex];
+        return groups.join(":");
+      }
+
+      async function computeFingerprintForLocalUser(svc, username) {
+        const pubB64 = localStorage.getItem(`${username}-id-publicKey`);
+        if (!pubB64) return null;
+        const pubKey = await svc.importIdentityPublicKey(pubB64);
+        const fp = await svc.getIdentityFingerprint(pubKey);
+        return fp; // raw hex (no colons)
+      }
+
+      async function computeFingerprintForContact(svc, contactName) {
+        const contactPubB64 = localStorage.getItem(`${contactName}-id-publicKey`);
+        if (!contactPubB64) return null;
+        const contactKey = await svc.importIdentityPublicKey(contactPubB64);
+        const fp = await svc.getIdentityFingerprint(contactKey);
+        return fp;
+      }
+
+      async function generateIdentity(svc, username) {
+        await svc.generateAndStoreIdentityKeyPair(username);
+        alert(`${username} identity keys generated.`);
+      }
+      async function generateECDH(svc, username) {
+        await svc.generateAndStoreECDHKeyPair(username);
+        alert(`${username} ECDH keys generated.`);
+      }
+
+      // ---------------- Fingerprint UI actions ----------------
+      async function refreshMyFingerprint(ui) {
+        const fpRaw = await computeFingerprintForLocalUser(ui.svc, ui.name.value);
+        const display = fpRaw ? fmtHexGrouped(fpRaw) : "—";
+        ui.fpDiv.textContent = display;
+      }
+
+      // Confirm flow: compare the *entered* fingerprint (what contact read aloud / you typed)
+      // against the actual computed fingerprint of the contact key stored locally.
+      async function confirmFingerprint(ui, contactName) {
+        const entered = (ui.enterInput.value || "").replace(/\s|:/g, "").toLowerCase();
+        if (!entered) {
+          ui.resultDiv.textContent = "Enter the fingerprint you heard from the contact (editable).";
+          ui.resultDiv.className = "verify-status warn";
+          return;
+        }
+
+        const realFp = await computeFingerprintForContact(ui.svc, contactName);
+        if (!realFp) {
+          ui.resultDiv.textContent = `No public key for ${contactName} found in localStorage. Generate their keys first.`;
+          ui.resultDiv.className = "verify-status warn";
+          return;
+        }
+
+        // Compare normalized values
+        if (entered === realFp.toLowerCase()) {
+          ui.resultDiv.textContent = "✅ Fingerprint MATCH — contact's key is authentic.";
+          ui.resultDiv.className = "verify-status ok";
+        } else {
+          ui.resultDiv.textContent = "⚠️ Fingerprint MISMATCH — possible MITM or typo.";
+          ui.resultDiv.className = "verify-status warn";
+        }
+      }
+
+      // ---------------- Messaging (same as before) ----------------
+      async function getKeys(username) {
+        return {
+          idPriv: localStorage.getItem(`${username}-id-privateKey`),
+          idPub: localStorage.getItem(`${username}-id-publicKey`),
+          ecdhPriv: localStorage.getItem(`${username}-privateKey`),
+          ecdhPub: localStorage.getItem(`${username}-publicKey`),
+        };
+      }
+
+      async function sendMessage(senderSvc, receiverSvc, senderName, receiverName, msgEl) {
+        const message = msgEl.value.trim();
+        if (!message) return alert("Enter a message first!");
+
+        const sKeys = await getKeys(senderName);
+        const rKeys = await getKeys(receiverName);
+
+        if (!sKeys.idPriv || !sKeys.idPub || !sKeys.ecdhPriv || !sKeys.ecdhPub || !rKeys.ecdhPub) {
+          return alert("Generate identity + ECDH keys for both users first!");
+        }
+
+        const sIdPriv = await senderSvc.importIdentityPrivateKey(sKeys.idPriv);
+        const sIdPub = await receiverSvc.importIdentityPublicKey(sKeys.idPub);
+        const sEcdhPriv = await senderSvc.importPrivateKey(sKeys.ecdhPriv);
+        const sEcdhPub = await senderSvc.importPublicKey(sKeys.ecdhPub);
+        const rEcdhPub = await receiverSvc.importPublicKey(rKeys.ecdhPub);
+
+        const sig = await senderSvc.signEcdhPublicKey(sIdPriv, sEcdhPub);
+        const ok = await receiverSvc.verifyEcdhPublicKeySignature(sIdPub, sEcdhPub, sig);
+        if (!ok) return alert("❌ Signature verification failed — possible MITM.");
+
+        const sharedKey = await senderSvc.deriveSharedKey(sEcdhPriv, rEcdhPub);
+        const { encryptedMessage, iv } = await senderSvc.encryptMessageAES(message, sharedKey);
+        const decrypted = await receiverSvc.decryptMessageAES(encryptedMessage, sharedKey, iv);
+
+        chatLog.value += `[${senderName} → ${receiverName}] ${decrypted}\n`;
+        msgEl.value = "";
+      }
+
+      // ---------------- Wire UI ----------------
+      window.onload = () => {
+        // Alice UI elements
+        const alice = {
+          svc: aliceSvc,
+          name: document.getElementById("u1-name"),
+          fpDiv: document.getElementById("u1-fingerprint-val"),
+          enterInput: document.getElementById("u1-entered-fp"),
+          confirmBtn: document.getElementById("u1-confirm-fp"),
+          resultDiv: document.getElementById("u1-confirm-result"),
+          genIdBtn: document.getElementById("u1-gen-identity"),
+          genEcdhBtn: document.getElementById("u1-gen-ecdh"),
+          showMyFpBtn: document.getElementById("u1-show-my-fp"),
+          sendBtn: document.getElementById("u1-send"),
+          msgEl: document.getElementById("u1-msg"),
+        };
+
+        // Bob UI elements
+        const bob = {
+          svc: bobSvc,
+          name: document.getElementById("u2-name"),
+          fpDiv: document.getElementById("u2-fingerprint-val"),
+          enterInput: document.getElementById("u2-entered-fp"),
+          confirmBtn: document.getElementById("u2-confirm-fp"),
+          resultDiv: document.getElementById("u2-confirm-result"),
+          genIdBtn: document.getElementById("u2-gen-identity"),
+          genEcdhBtn: document.getElementById("u2-gen-ecdh"),
+          showMyFpBtn: document.getElementById("u2-show-my-fp"),
+          sendBtn: document.getElementById("u2-send"),
+          msgEl: document.getElementById("u2-msg"),
+        };
+
+        // Buttons: generate keys
+        alice.genIdBtn.onclick = async () => { await generateIdentity(alice.svc, alice.name.value); await refreshMyFingerprint(alice); };
+        alice.genEcdhBtn.onclick = async () => { await generateECDH(alice.svc, alice.name.value); alert("Alice ECDH generated."); };
+        alice.showMyFpBtn.onclick = async () => refreshMyFingerprint(alice);
+        alice.confirmBtn.onclick = async () => confirmFingerprint(alice, bob.name.value);
+        alice.sendBtn.onclick = async () => sendMessage(alice.svc, bob.svc, alice.name.value, bob.name.value, alice.msgEl);
+
+        bob.genIdBtn.onclick = async () => { await generateIdentity(bob.svc, bob.name.value); await refreshMyFingerprint(bob); };
+        bob.genEcdhBtn.onclick = async () => { await generateECDH(bob.svc, bob.name.value); alert("Bob ECDH generated."); };
+        bob.showMyFpBtn.onclick = async () => refreshMyFingerprint(bob);
+        bob.confirmBtn.onclick = async () => confirmFingerprint(bob, alice.name.value);
+        bob.sendBtn.onclick = async () => sendMessage(bob.svc, alice.svc, bob.name.value, alice.name.value, bob.msgEl);
+
+        // Initialize displays if keys already exist
+        refreshMyFingerprint(alice).catch(()=>{});
+        refreshMyFingerprint(bob).catch(()=>{});
+      };
+    </script>
+  </body>
+</html>
