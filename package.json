@@ -1,7 +1,7 @@
 {
   "name": "@amirafa/encryption-service",
   "version": "1.0.1",
-  "description": "An Encryption Servic library built with Vite",
+  "description": "An Encryption Service library built with Vite",
   "license": "MIT",
   "author": "Amirafa <amir.h.rafati@gmail.com>",
   "keywords": [
