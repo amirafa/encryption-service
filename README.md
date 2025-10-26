@@ -358,8 +358,9 @@ Feel free to use, modify, and distribute under the terms of the MIT license.
 
 ## Changelog
 
-### [Version 1.0.4] - 2025-10-26
+### [Version 1.0.5] - 2025-10-26
 
+-   Update `README.md`
 -   Add `logo`
 
 ### [Version 1.0.3] - 2025-10-26
