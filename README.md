@@ -1,3 +1,19 @@
+<p align="center">
+  <a href='https://postimages.org/' target='_blank'>
+    <img 
+      src='https://i.postimg.cc/mrBJJjMJ/Encryption-Service-logo.png'       
+      width="250" 
+      height="250"  
+      border='0' 
+      alt='vuexp-logo'
+    />
+  </a>
+</p>
+
+# Encryption Service
+
+A lightweight library to use E2EE
+
 ## 🚀 Installation
 
 ### From npm
@@ -341,6 +357,10 @@ Feel free to use, modify, and distribute under the terms of the MIT license.
 ---
 
 ## Changelog
+
+### [Version 1.0.4] - 2025-10-26
+
+-   Add `logo`
 
 ### [Version 1.0.3] - 2025-10-26
 
