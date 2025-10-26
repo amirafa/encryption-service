@@ -36,7 +36,7 @@ pnpm add @amirafa/encryption-service
 ## 🧩 Import and Usage
 
 ```ts
-import { EncryptionService } from "encryption-service";
+import { EncryptionService } from "@amirafa/encryption-service";
 
 const enc = EncryptionService();
 
