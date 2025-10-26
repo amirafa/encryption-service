@@ -1,16 +1,17 @@
 import { defineConfig } from "vite";
-import path from "path";
+import dts from "vite-plugin-dts";
 
 export default defineConfig({
-  build: {
-    lib: {
-      entry: path.resolve(__dirname, "src/EncryptionService.ts"),
-      name: "EncryptionService",
-      fileName: (format) => `encryption-service.${format}.js`,
+    plugins: [dts({ insertTypesEntry: true, outDir: "dist" })],
+    build: {
+        lib: {
+            entry: "src/encryption-service.ts",
+            name: "EncryptionService",
+            fileName: (format) => `encryption-service.${format}.js`,
+            formats: ["es", "cjs"],
+        },
+        rollupOptions: {
+            external: ["crypto"],
+        },
     },
-    rollupOptions: {
-      external: [],
-    },
-    sourcemap: true,
-  },
 });

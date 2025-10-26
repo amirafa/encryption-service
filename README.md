@@ -1,4 +1,48 @@
-# 🔐 Secure Messaging System – Full Flow & Backend Schema
+## 🚀 Installation
+
+### From npm
+```bash
+npm install @amirafa/encryption-service
+```
+
+### From yarn
+```bash
+yarn add @amirafa/encryption-service
+```
+
+### From pnpm
+```bash
+pnpm add @amirafa/encryption-service
+```
+
+---
+
+## 🧩 Import and Usage
+
+```ts
+import { EncryptionService } from "encryption-service";
+
+const enc = EncryptionService();
+
+// generate user keys
+await enc.generateAndStoreIdentityKeyPair("alice");
+await enc.generateAndStoreECDHKeyPair("alice");
+
+// example: encrypt and decrypt a message
+const alicePriv = await enc.importPrivateKey(localStorage.getItem("alice-privateKey")!);
+const bobPub = await enc.importPublicKey(localStorage.getItem("bob-publicKey")!);
+
+const sharedKey = await enc.deriveSharedKey(alicePriv, bobPub);
+
+const { encryptedMessage, iv } = await enc.encryptMessageAES("Hello Bob!", sharedKey);
+const plain = await enc.decryptMessageAES(encryptedMessage, sharedKey, iv);
+
+console.log(plain); // "Hello Bob!"
+```
+
+---
+
+# Full Flow & Backend Schema
 
 This document describes how the `EncryptionServiceClass` implements **end-to-end encryption (E2EE)** for a secure chat system and how the **backend** should store and handle related data.
 
@@ -286,3 +330,31 @@ console.log(msg); // "Hello Bob!"
 | AES-GCM               | Message encryption/decryption | Client |
 | Key & message storage | Persistence only            | Backend  |
 | Plaintext visibility  | Sender & recipient devices only | — |
+
+---
+
+## 🧾 License
+
+MIT © 2025 — Encryption Service by Amirafa  
+Feel free to use, modify, and distribute under the terms of the MIT license.
+
+---
+
+## Changelog
+
+### [Version 1.0.3] - 2025-10-26
+
+-   Add `type declaration`
+-   Update `README.md`
+
+### [Version 1.0.2] - 2025-10-26
+
+-   Add `README.md`
+
+### [Version 1.0.1] - 2025-10-26
+
+-   Minor `fixes`
+
+### [Version 1.0.0] - 2025-10-26
+
+-   published `@amirafa/encryption-service`

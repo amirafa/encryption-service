@@ -11,6 +11,6 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
-    "encryption-service": "file:.."
+    "@amirafa/encryption-service": "file:.."
   }
 }
