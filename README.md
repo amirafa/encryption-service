@@ -358,6 +358,10 @@ Feel free to use, modify, and distribute under the terms of the MIT license.
 
 ## Changelog
 
+### [Version 1.0.6] - 2025-10-28
+
+-   Add `git repository`
+
 ### [Version 1.0.5] - 2025-10-26
 
 -   Update `README.md`
